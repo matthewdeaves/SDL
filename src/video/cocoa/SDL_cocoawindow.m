@@ -1169,7 +1169,7 @@ SetWindowStyle(SDL_Window * window, NSUInteger style)
 }
 
 #if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
-#if MAC_OS_X_VERSION_MIN_REQUIRED < 1070
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
 - (void)handleTouches:(NSTouchPhase) phase withEvent:(NSEvent *) theEvent
 #else
 - (void)handleTouches:(cocoaTouchType)type withEvent:(NSEvent *)event
