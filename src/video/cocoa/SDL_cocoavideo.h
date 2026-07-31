@@ -45,7 +45,7 @@
 #include "SDL_cocoaopengl.h"
 #include "SDL_cocoawindow.h"
 
-#if !defined(MAC_OS_X_VERSION_10_5)
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050 /* oldmac: cross-SDK version guard */
 typedef long int NSInteger;
 typedef unsigned int NSUInteger;
 #endif

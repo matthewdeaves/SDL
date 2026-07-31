@@ -102,7 +102,7 @@ ScheduleContextUpdates(SDL_WindowData *data)
     NSOpenGLContext *currentContext = [NSOpenGLContext currentContext];
     NSMutableArray *contexts = data->nscontexts;
     @synchronized (contexts) {
-#if defined(MAC_OS_X_VERSION_10_5)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 /* oldmac: cross-SDK version guard */
         for (SDLOpenGLContext *context in contexts) {
 #else
         /* old way to iterate */
@@ -363,7 +363,7 @@ SetWindowStyle(SDL_Window * window, unsigned int style)
        !!! FIXME:   http://bugzilla.libsdl.org/show_bug.cgi?id=1825
     */
     windows = [NSApp orderedWindows];
-#if defined(MAC_OS_X_VERSION_10_5)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 /* oldmac: cross-SDK version guard */
     for (NSWindow *win in windows) {
 #else
     /* old way to iterate */
@@ -1521,7 +1521,7 @@ Cocoa_DestroyWindow(_THIS, SDL_Window * window)
         }
 
         NSArray *contexts = [[data->nscontexts copy] autorelease];
-#if defined(MAC_OS_X_VERSION_10_5)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 /* oldmac: cross-SDK version guard */
         for (SDLOpenGLContext *context in contexts) {
 #else
         /* old way to iterate */

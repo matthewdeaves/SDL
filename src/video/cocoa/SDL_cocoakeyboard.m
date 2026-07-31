@@ -426,7 +426,7 @@ HandleModifiers(_THIS, unsigned short scancode, unsigned int modifierFlags)
 static void
 UpdateKeymap(SDL_VideoData *data)
 {
-#if defined(MAC_OS_X_VERSION_10_5)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 /* oldmac: cross-SDK version guard */
     TISInputSourceRef key_layout;
     const void *chr_data;
     int i;
