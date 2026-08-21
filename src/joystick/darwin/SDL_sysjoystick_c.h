@@ -24,6 +24,66 @@
 
 #include <IOKit/hid/IOHIDLib.h>
 
+/* old-Mac port: SDL2 upstream has exactly one macOS joystick backend and it is
+ * written against the IOHIDManager API, whose headers (IOHIDBase.h,
+ * IOHIDDevice.h, IOHIDElement.h) first ship in the 10.5 SDK. IOHIDLib.h itself
+ * DOES exist in 10.3.9 and 10.4u, so the #include above succeeds and the build
+ * instead dies on a wall of "syntax error before 'IOHIDElementRef'".
+ *
+ * That is why every PowerPC SDL here was configured --disable-joystick, and why
+ * the PowerPC slices had no gamepad support at all.
+ *
+ * SDL 1.2's darwin backend used the older IOCFPlugIn / IOHIDDeviceInterface API,
+ * which IS present in both old SDKs. SDL_sysjoystick_legacy.c reimplements the
+ * SDL2 driver interface on top of that, and is selected here by SDK version.
+ * Below 10.5 the IOHIDManager types simply do not exist, so the two structure
+ * sets cannot be shared.
+ */
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1050
+
+struct recElement
+{
+    IOHIDElementCookie cookie;  /* unique value identifying the element */
+    long min;                   /* reported min value possible */
+    long max;                   /* reported max value possible */
+
+    /* runtime variables used for auto-calibration */
+    long minReport;             /* min returned value */
+    long maxReport;             /* max returned value */
+
+    struct recElement *pNext;   /* next element in list */
+};
+typedef struct recElement recElement;
+
+struct joystick_hwdata
+{
+    IOHIDDeviceInterface **interface;   /* NULL = no interface */
+
+    char product[256];          /* name of product */
+    long usage;                 /* usage page from IOUSBHID Parser.h */
+    long usagePage;             /* usage within the above page */
+
+    long axes;                  /* number of axes (calculated) */
+    long buttons;               /* number of buttons (calculated) */
+    long hats;                  /* number of hat switches (calculated) */
+    long elements;              /* total elements (calculated) */
+
+    recElement *firstAxis;
+    recElement *firstButton;
+    recElement *firstHat;
+
+    int removed;
+    int uncentered;
+
+    int instance_id;
+    SDL_JoystickGUID guid;
+
+    struct joystick_hwdata *pNext;      /* next device */
+};
+typedef struct joystick_hwdata recDevice;
+
+#else   /* 10.5 SDK or newer: upstream's IOHIDManager backend */
+
 struct recElement
 {
     IOHIDElementRef elementRef;
@@ -69,5 +129,6 @@ struct joystick_hwdata
 };
 typedef struct joystick_hwdata recDevice;
 
+#endif /* MAC_OS_X_VERSION_MAX_ALLOWED < 1050 */
 
 #endif /* SDL_JOYSTICK_IOKIT_H */

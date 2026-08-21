@@ -22,6 +22,13 @@
 
 #ifdef SDL_JOYSTICK_IOKIT
 
+/* old-Mac port: this file is upstream's IOHIDManager backend, which needs the
+ * 10.5 SDK. Against 10.3.9 / 10.4u the IOHIDManager headers do not exist and it
+ * cannot compile at all. Below 10.5, SDL_sysjoystick_legacy.c provides the same
+ * driver interface over the older IOCFPlugIn API instead. See the long comment
+ * in SDL_sysjoystick_c.h. */
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050
+
 #include <IOKit/hid/IOHIDLib.h>
 
 /* For force feedback testing. */
@@ -820,6 +827,8 @@ SDL_JoystickGUID SDL_SYS_JoystickGetGUID(SDL_Joystick *joystick)
 {
     return joystick->hwdata->guid;
 }
+
+#endif /* MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 */
 
 #endif /* SDL_JOYSTICK_IOKIT */
 
