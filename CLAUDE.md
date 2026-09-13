@@ -101,11 +101,42 @@ which port script(s) they replace (e.g. old-mac-halflife's
 at that commit before being written, not against the reporting ticket's
 claimed diff alone.
 
-Per-floor weak-link audit (`nm -m` undefined externals against that floor's
-SDK, must fail on a hard reference to a symbol newer than the floor) is not
-yet implemented for the PPC floors — blocked on an ObjC-capable PPC
-toolchain (buildhost#81). Do not claim a floor's ceiling is enforced until
-that audit exists and passes.
+Per-floor weak-link audit: `scripts/weak-link-audit.sh <binary> <floor>`.
+Run 2026-09-13 against alephone's real `sdl2-ppc-tiger103/lib/libSDL2.a` on
+mini-intel2 (floor 10.3), now that buildhost#81's toolchain exists there.
+Two findings, both load-bearing for how to read this script's output on a
+PPC/gcc build:
+
+- **Zero weak-import markers anywhere in the archive** (0 of 947 undefined
+  symbols, archive-wide). The clang-only "weak vs hard" signal this script
+  uses to catch SDL#2's class of bug does not discriminate anything on the
+  old gcc-4.0/PowerPC toolchain — it may simply never mark anything weak.
+  A "0 weak, N hard" result from this script on a PPC/gcc artifact is not
+  itself a pass or fail; see the script's own LIMITS comment.
+- **The real floor guarantee for this toolchain is structural, not a link-
+  time property of the artifact**: both `build-ppc-panther.sh` and
+  `build-ppc-tiger.sh` (old-mac-halflife) compile with `-isysroot
+  /Developer/SDKs/MacOSX10.3.9.sdk -mmacosx-version-min=10.3` — the exact
+  floor SDK, so there is no way to accidentally pick up a symbol newer than
+  10.3, unlike SDL#2 where a modern/mismatched target let a 10.7-only
+  symbol in. Confirmed by reading both build scripts directly, not just
+  inferred from the linked artifact.
+
+After resolving intra-archive references (most "undefined" symbols in one
+`.o` are actually defined by another `.o` in the same archive and are not a
+real floor dependency), the archive has 191 genuinely external symbols —
+libSystem/CoreFoundation/CoreGraphics/Carbon/IOKit/pthread/objc-runtime
+calls consistent with a 10.3-era SDL2 build. Not individually cross-checked
+against the 10.3.9 SDK's own availability annotations one by one — that's
+the natural next step if this floor's safety is ever in question, and would
+need to run on a host with that SDK (confirmed reachable: mini-intel2,
+`/Developer/SDKs/MacOSX10.3.9.sdk`). Stopping here for now; full result
+posted to matthewdeaves/SDL#1.
+
+Does **not** catch SDL#1/alephone#37's actual failure mode (an
+`objc_msgSend` to a selector the runtime doesn't implement) — that's
+dynamic dispatch, never a linked symbol, so no static `nm`/`otool` check on
+a linked binary can see it.
 
 ### Boundaries
 
