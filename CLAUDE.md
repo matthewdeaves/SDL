@@ -33,8 +33,42 @@ being regenerated at build time by a port's build driver.
 | `retro/panther-ppc-v2` | `matthewdeaves/panther-sdl2@oldmac` (3c721fce79) | halflife's own fork, itself `alex-free/panther-sdl2@bd33187` + 7 real commits | 2.0.3 | **canonical**, per manager decision 2026-09-13 15:12. SDL#1 fix landed on top, tagged `retro/panther-ppc-sdl1-fix-v2` |
 | `retro/panther-ppc` | `alex-free/panther-sdl2@bd33187` | <https://github.com/alex-free/panther-sdl2> | 2.0.3 | **superseded, do not use.** Built from old-mac-build-host's 2026-07-27 snapshot, which predates halflife's real production history (`matthewdeaves/panther-sdl2`) by one joystick-backend commit (2026-08-21) — this branch ships without PowerPC gamepad support. Kept only because a force-push to remove it needs a human's go-ahead; see `retro/panther-ppc-v2` instead. Tag `retro/panther-ppc-sdl1-fix` is superseded the same way, by `retro/panther-ppc-sdl1-fix-v2`. |
 | `retro/leopard-ppc` | `alex-free/leopard-sdl2@01e350c` | <https://github.com/alex-free/leopard-sdl2> | 2.0.6 | fleet hand-edit landed, tagged `retro/leopard-ppc-base`; in no shipped slice since old-mac-halflife v1.4.0 |
-| `retro/x86_64-10.5` | not yet established | — | — | source tree at `~/oldmac/sdl2-x86_64` (mini-intel) has no recorded provenance; buildhost owns the provenance handoff for this one (SDL#2) since they built the artifact |
+| `retro/x86_64-10.6` | upstream `release-2.0.22` (53dea9830), unmodified | <https://github.com/libsdl-org/SDL> | 2.0.22 | **canonical for the x86_64 floor.** No source patch: SDL#2 is a deployment-target artefact, fixed by building at `-mmacosx-version-min=10.6` instead of 10.7. Tagged `retro/x86_64-10.6-base`. Supersedes the placeholder name `retro/x86_64-10.5` from this repo's original floor list — the real, measured floor is 10.6 (Snow Leopard/mini-sl), not 10.5. |
 | `retro/arm64` | not yet established | — | — | not started |
+
+### x86_64 floor: SDL#2 finding
+
+The shared `~/oldmac/sdl2-x86_64` dylib on mini-intel is stock SDL2 2.0.22
+from the libsdl.org tarball, built by old-mac-halflife's `scripts/build-lion.sh`
+at `-mmacosx-version-min=10.7` — not a legacy fork, no patches. The crash
+(`_NSBackingPropertyOldScaleFactorKey` hard-linked, dyld failure on 10.6.8)
+is purely because that symbol sits behind an Apple availability annotation:
+below 10.7 it is automatically a **weak** import, at 10.7+ it's a **hard**
+one. `~/oldmac/sdl2-snow-x86_64` (built at 10.6) already exists and already
+ships correctly in Half-Life's 10.6 slice.
+
+Weak-link audit recipe for this floor (verified 2026-09-13):
+
+```sh
+cat > probe.m <<'EOF'
+#import <AppKit/AppKit.h>
+NSString *probe(void) { return NSBackingPropertyOldScaleFactorKey; }
+EOF
+SDK=$(xcrun --sdk macosx --show-sdk-path)
+clang -c -x objective-c -arch x86_64 -isysroot "$SDK" \
+  -mmacosx-version-min=10.6 -fobjc-arc probe.m -o out.o
+nm -m out.o | grep BackingPropertyOldScaleFactorKey
+# pass: "(undefined) weak external _NSBackingPropertyOldScaleFactorKey"
+# fail: "(undefined) external ..." with no "weak" — means the floor's SDK
+# no longer marks this symbol weak below 10.7, or the deployment target
+# regressed to 10.7+.
+```
+
+This uses the *current* SDK's availability annotations, not a real 10.6 SDK
+— that's fine, since the annotation itself (`_NSBackingPropertyOldScaleFactorKey`
+introduced 10.7) hasn't changed and Apple SDKs carry historical availability
+metadata forward. A newer-symbol regression on this floor would fail the
+same way a real 10.6 SDK link would.
 
 `old-mac-half-life-1` still builds from `matthewdeaves/panther-sdl2` directly
 (`scripts/build-pins.sh`, not this repo) as of the v1.9.18 RC. Repointing it
