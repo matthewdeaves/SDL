@@ -22,7 +22,7 @@
 
 #if SDL_VIDEO_DRIVER_COCOA
 
-#if defined(__APPLE__) && defined(__POWERPC__) && !defined(__APPLE_ALTIVEC__)
+#if defined(__APPLE__) && defined(__POWERPC__) && defined(__ALTIVEC__) && !defined(__APPLE_ALTIVEC__) /* oldmac: no altivec.h when AltiVec is off */
 #include <altivec.h>
 #undef bool
 #undef vector

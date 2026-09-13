@@ -72,6 +72,11 @@ SDL_GetBasePath(void)
     return retval;
 }
 
+#if MAC_OS_X_VERSION_MAX_ALLOWED < 1040 /* oldmac: NSApplicationSupportDirectory is 10.4+ (value 14) */
+#ifndef NSApplicationSupportDirectory
+#define NSApplicationSupportDirectory 14
+#endif
+#endif
 char *
 SDL_GetPrefPath(const char *org, const char *app)
 {

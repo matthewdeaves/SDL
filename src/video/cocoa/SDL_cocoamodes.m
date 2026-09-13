@@ -206,6 +206,13 @@ Cocoa_ReleaseDisplayModeList(_THIS, CFArrayRef modelist)
 static const char *
 Cocoa_GetDisplayName(CGDirectDisplayID displayID)
 {
+#if MAC_OS_X_VERSION_MIN_REQUIRED < 1040
+    /* oldmac: kIODisplayOnlyPreferredName is 10.4+: the IODisplayCreateInfoDictionary info-name API and this
+     * constant are absent from the 10.3.9 SDK. The name is cosmetic (SDL_GetDisplayName
+     * only, unused by Half-Life), so return NULL on a Panther-targeted build. */
+    (void)displayID;
+    return NULL;
+#else
     NSDictionary *deviceInfo = (NSDictionary *)IODisplayCreateInfoDictionary(CGDisplayIOServicePort(displayID), kIODisplayOnlyPreferredName);
     NSDictionary *localizedNames = [deviceInfo objectForKey:[NSString stringWithUTF8String:kDisplayProductName]];
     const char* displayName = NULL;
@@ -215,6 +222,7 @@ Cocoa_GetDisplayName(CGDirectDisplayID displayID)
     }
     [deviceInfo release];
     return displayName;
+#endif
 }
 
 void

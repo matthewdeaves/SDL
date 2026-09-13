@@ -426,7 +426,7 @@ HandleModifiers(_THIS, unsigned short scancode, unsigned int modifierFlags)
 static void
 UpdateKeymap(SDL_VideoData *data)
 {
-#if defined(MAC_OS_X_VERSION_10_5)
+#if MAC_OS_X_VERSION_MAX_ALLOWED >= 1050 /* oldmac: cross-SDK version guard */
     TISInputSourceRef key_layout;
     const void *chr_data;
     int i;
@@ -510,10 +510,33 @@ Cocoa_StartTextInput(_THIS)
     NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
     SDL_Window *window = SDL_GetKeyboardFocus();
     NSWindow *nswindow = nil;
+    NSView *parentView = nil;
+
     if (window)
         nswindow = ((SDL_WindowData*)window->driverdata)->nswindow;
 
-    NSView *parentView = [nswindow contentView];
+    /* oldmac: text input setup (issue #29). SDL_VideoInit() calls
+     * SDL_StartTextInput() before any window exists, and SDL_SetKeyboardFocus(NULL)
+     * runs whenever the window resigns key, so SDL_GetKeyboardFocus() is NULL here
+     * more often than this code assumed. Ask AppKit for the key window before
+     * giving up on finding a view to attach to. */
+    if (!nswindow) {
+        nswindow = [NSApp keyWindow];
+    }
+
+    parentView = [nswindow contentView];
+
+    /* With no content view there is nothing useful to build. Upstream carried on
+     * and sent -addSubview: and -makeFirstResponder: to nil, which does nothing
+     * quietly and leaves a field editor that belongs to no window, while
+     * SDL_IsTextInputActive() still reports true and the engine drops printable
+     * keys on that basis. -interpretKeyEvents: on a view in no window has no
+     * input session to feed. Build nothing instead: the next call that does have
+     * a window builds a field editor that is properly attached. */
+    if (!parentView) {
+        [pool release];
+        return;
+    }
 
     /* We only keep one field editor per process, since only the front most
      * window can receive text input events, so it make no sense to keep more
@@ -543,6 +566,33 @@ Cocoa_StopTextInput(_THIS)
 
     if (data && data->fieldEdit) {
         NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
+        NSWindow *nswindow = [data->fieldEdit window];
+
+        /* oldmac: text input teardown (issue #29). removeFromSuperview drops the
+         * superview's retain and the release below drops the last one, so the
+         * field editor is deallocated here. Upstream did that without telling
+         * anything that the input client was going away. AppKit's own
+         * NSTextInput clients do the opposite: NSTextView sends
+         * -markedTextAbandoned: to the current input manager when it stops being
+         * the client. Pre Leopard, -interpretKeyEvents: routes through the
+         * process wide NSInputManager, which keeps an unretained pointer to the
+         * last client it saw; Leopard replaced that with a per view
+         * NSTextInputContext that is torn down with the view. Sending the
+         * notification is correct everywhere and only matters on 10.3 and 10.4.
+         * See GitHub issue #29. */
+        [[NSInputManager currentInputManager] markedTextAbandoned: data->fieldEdit];
+
+        /* Defensive, and a no op as this file stands: SDLTranslatorResponder does
+         * not override -acceptsFirstResponder, so -[NSWindow makeFirstResponder:]
+         * in Cocoa_StartTextInput always fails and the field editor never holds
+         * the status. If that ever changes, the window must not be left pointing
+         * at a view that is about to be freed. */
+        if (nswindow && [nswindow firstResponder] == (NSResponder *) data->fieldEdit) {
+            if (![nswindow makeFirstResponder: [nswindow contentView]]) {
+                [nswindow makeFirstResponder: nil];
+            }
+        }
+
         [data->fieldEdit removeFromSuperview];
         [data->fieldEdit release];
         data->fieldEdit = nil;

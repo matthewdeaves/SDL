@@ -132,29 +132,29 @@ Cocoa_CreateSystemCursor(SDL_SystemCursor id)
         nscursor = [NSCursor arrowCursor];
         break;
     case SDL_SYSTEM_CURSOR_CROSSHAIR:
-        nscursor = [NSCursor crosshairCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(crosshairCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(crosshairCursor)] : [NSCursor arrowCursor]);
         break;
     case SDL_SYSTEM_CURSOR_WAITARROW:
         nscursor = [NSCursor arrowCursor];
         break;
     case SDL_SYSTEM_CURSOR_SIZENWSE:
     case SDL_SYSTEM_CURSOR_SIZENESW:
-        nscursor = [NSCursor closedHandCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(closedHandCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(closedHandCursor)] : [NSCursor arrowCursor]);
         break;
     case SDL_SYSTEM_CURSOR_SIZEWE:
-        nscursor = [NSCursor resizeLeftRightCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(resizeLeftRightCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(resizeLeftRightCursor)] : [NSCursor arrowCursor]);
         break;
     case SDL_SYSTEM_CURSOR_SIZENS:
-        nscursor = [NSCursor resizeUpDownCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(resizeUpDownCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(resizeUpDownCursor)] : [NSCursor arrowCursor]);
         break;
     case SDL_SYSTEM_CURSOR_SIZEALL:
-        nscursor = [NSCursor closedHandCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(closedHandCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(closedHandCursor)] : [NSCursor arrowCursor]);
         break;
     case SDL_SYSTEM_CURSOR_NO:
-        nscursor = [NSCursor operationNotAllowedCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(operationNotAllowedCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(operationNotAllowedCursor)] : [NSCursor arrowCursor]);
         break;
     case SDL_SYSTEM_CURSOR_HAND:
-        nscursor = [NSCursor pointingHandCursor];
+        nscursor = ([NSCursor respondsToSelector:@selector(pointingHandCursor)] ? (NSCursor *)[NSCursor performSelector:@selector(pointingHandCursor)] : [NSCursor arrowCursor]);
         break;
     default:
         SDL_assert(!"Unknown system cursor");
