@@ -1,34 +1,55 @@
 #!/bin/sh
 # weak-link-audit.sh <binary> <expected-floor>
 #
-# Per-floor weak-link audit for a built PPC (or any Mach-O) SDL2 artifact.
-# Checks the two things that actually cause a dyld-load crash on an older
-# floor OS (SDL#2's failure mode): a binary whose own declared minimum OS
-# version doesn't match the floor it's meant to ship on, and any undefined
-# external symbol that the compiler did NOT mark as a weak import.
+# Per-floor weak-link audit for a built SDL2 artifact (dylib, executable, or
+# static archive). Reports:
+#   1. Whether the binary's own declared minimum OS version (where it has
+#      one at all -- see LIMITS below) matches the floor it's meant to ship
+#      on. This alone was SDL#2's actual root cause: built at 10.7, needed
+#      10.6.
+#   2. Every symbol this artifact needs from OUTSIDE itself -- i.e. every
+#      undefined external symbol that is NOT satisfied by another object
+#      file in the same archive/binary -- split into weak (dyld tolerates
+#      it being missing) vs hard (must exist on every OS this binary claims
+#      to support).
 #
-# What this catches: a hard (non-weak) reference to a symbol newer than the
-# floor -- SDL#2's class of bug (_NSBackingPropertyOldScaleFactorKey hard-
-# linked at a 10.7 build, needed 10.6). If the binary was compiled correctly
-# against an SDK with proper availability annotations at the right
-# -mmacosx-version-min, every symbol introduced after the floor is
-# automatically weak-imported, so the interesting signal is (a) any MISMATCH
-# between the binary's declared floor and the branch's floor, and (b) any
-# hard undefined external at all, which is worth an eyeball even if most are
-# legitimate (libSystem, pre-floor Foundation/AppKit calls).
+# For a static archive, step 2 matters far more than a naive `nm -m | grep
+# undefined` suggests: most "undefined" symbols in an individual .o are
+# resolved by ANOTHER .o in the same archive once everything is linked
+# together (e.g. SDL_video.o calling something defined in SDL.o), so they
+# are internal, not a real dependency on the floor OS. This script computes
+# the archive-wide defined-symbol set and subtracts it, so what's left is
+# what the linked binary will actually ask dyld to resolve.
 #
-# What this does NOT catch: a call into an Objective-C method the runtime
-# doesn't implement (objc_msgSend to a missing selector), which is SDL#1's
-# actual failure mode (alephone#37, [autorelease_pool drain] on Panther).
-# That's a dynamic dispatch, not a linked symbol -- it never appears as an
-# undefined external, weak or otherwise, so no static nm/otool check on the
-# linked binary can see it. That needs either a real-hardware/emulated smoke
-# test, or a static scan of every selector literal sent against a known
-# per-OS class-dump, which is a separate, bigger tool. Do not claim this
-# script would have caught alephone#37 -- it would not have.
+# LIMITS, read before trusting a clean result:
+#
+# - Weak-vs-hard is a compiler feature (clang auto-weak-imports a symbol
+#   whose SDK availability annotation is newer than -mmacosx-version-min).
+#   The old gcc-4.0/PowerPC toolchain this fleet's Panther/Tiger floors are
+#   built with does not appear to emit ANY weak markers at all -- measured
+#   2026-09-13 against alephone's real sdl2-ppc-tiger103/lib/libSDL2.a: 0
+#   "weak external" symbols out of 947 undefined ones, archive-wide. If this
+#   script reports 0 weak and some hard count on a gcc/PPC build, that is
+#   NOT evidence every hard symbol is actually available on the floor -- it
+#   may just mean this toolchain never marks anything weak, full stop, and
+#   the distinction this script draws for a clang-built artifact (see SDL#2,
+#   which this script DOES meaningfully audit) does not hold here. Treat the
+#   "truly external" list on a gcc/PPC build as a list to hand-check against
+#   the floor SDK's headers, not as a pass/fail on its own.
+# - Static archives generally carry no per-file load command with a minimum
+#   OS version (check 1 will say so and stop there); check that on the
+#   final linked binary that consumes the archive instead, if one exists.
+# - This does NOT catch a call into an Objective-C method the runtime
+#   doesn't implement (objc_msgSend to a missing selector) -- SDL#1's actual
+#   failure mode (alephone#37, [autorelease_pool drain] on Panther). That's
+#   dynamic dispatch, never a linked symbol, so no static nm/otool check on
+#   a linked binary can see it. A different tool (real-hardware/emulated
+#   smoke test, or a selector-literal scan against a per-OS class-dump)
+#   would be needed for that class of bug. Do not claim this script would
+#   have caught alephone#37 -- it would not have.
 #
 # Usage:
-#   weak-link-audit.sh <path-to-dylib-or-static-lib> <floor, e.g. 10.3>
+#   weak-link-audit.sh <path-to-dylib-or-static-lib-or-executable> <floor, e.g. 10.3>
 
 set -eu
 
@@ -50,9 +71,12 @@ DECLARED=$(otool -l "$BIN" 2>/dev/null | awk '
     want && /version/ { print $2; exit }
 ')
 if [ -z "$DECLARED" ]; then
-    echo "!! could not read a version-min load command from $BIN"
-    echo "   (static archives carry no load commands of their own -- check"
-    echo "    the linked binary that consumes this .a instead)"
+    echo "!! no version-min load command found in $BIN"
+    echo "   (a static archive carries none of its own -- check the final"
+    echo "    linked binary instead. An old toolchain, e.g. gcc-4.0/PowerPC,"
+    echo "    may not emit this load command on ANY artifact -- see the"
+    echo "    LIMITS note at the top of this script before treating that as"
+    echo "    a pass.)"
 else
     echo "declared: $DECLARED   branch floor: $FLOOR"
     if [ "$DECLARED" != "$FLOOR" ]; then
@@ -64,22 +88,34 @@ else
 fi
 echo
 
-echo "-- undefined external symbols: weak vs hard --"
-TMP=$(mktemp)
-trap 'rm -f "$TMP"' EXIT
-nm -m "$BIN" 2>/dev/null | grep '(undefined)' > "$TMP" || true
+echo "-- symbols this artifact actually needs from outside itself --"
+# Plain PID-based scratch files, not mktemp: some floor build hosts (e.g.
+# macOS 10.7's mktemp) require a template argument and reject a bare call,
+# and these are throwaway diagnostic files, not something that needs
+# mktemp's collision-proofing.
+DEFINED="/tmp/weak-link-audit.defined.$$"
+UNDEF="/tmp/weak-link-audit.undef.$$"
+trap 'rm -f "$DEFINED" "$UNDEF"' EXIT
 
-if [ ! -s "$TMP" ]; then
-    echo "(no undefined externals found -- fully static, or nm could not read this file)"
-else
-    WEAK=$(grep -c 'weak external' "$TMP" || true)
-    HARD_LINES=$(grep -v 'weak external' "$TMP" | grep 'external' || true)
-    HARD=$(printf '%s\n' "$HARD_LINES" | grep -c . || true)
-    echo "weak (tolerated if missing at runtime): $WEAK"
-    echo "hard (must exist on every OS this binary claims to support): $HARD"
-    echo
-    if [ "$HARD" -gt 0 ]; then
-        echo "-- hard undefined externals (review: each must exist on $FLOOR) --"
-        printf '%s\n' "$HARD_LINES" | sed 's/^/  /'
-    fi
+NMOUT=$(nm -m "$BIN" 2>/dev/null) || true
+printf '%s\n' "$NMOUT" | awk '!/\(undefined\)/ && /external/{print $NF}' | sort -u > "$DEFINED"
+printf '%s\n' "$NMOUT" | awk '/\(undefined\)/ && /external/{print (/weak external/ ? "weak" : "hard"), $NF}' | sort -u -k2 > "$UNDEF"
+
+# An archive member can be undefined-and-weak in one .o and undefined-and-
+# hard in another for the same symbol name (rare, but nm sees each .o on its
+# own); if both appear, prefer showing it as hard so a real per-floor risk
+# is not hidden behind a weak match elsewhere.
+TRULY_EXT=$(awk '{print $2}' "$UNDEF" | sort -u | while read -r sym; do
+    grep -qxF "$sym" "$DEFINED" && continue
+    if grep -q "^hard $sym\$" "$UNDEF"; then echo "hard $sym"; else echo "weak $sym"; fi
+done)
+
+WEAK_N=$(printf '%s\n' "$TRULY_EXT" | grep -c '^weak ' || true)
+HARD_N=$(printf '%s\n' "$TRULY_EXT" | grep -c '^hard ' || true)
+echo "weak (tolerated if missing at runtime): $WEAK_N"
+echo "hard (must exist on every OS this binary claims to support): $HARD_N"
+echo
+if [ "$HARD_N" -gt 0 ]; then
+    echo "-- hard, truly-external symbols (review each against the $FLOOR SDK) --"
+    printf '%s\n' "$TRULY_EXT" | awk '/^hard /{print "  "$2}' | sort
 fi
