@@ -66,7 +66,7 @@ FILE* SDL_OpenFPFromBundleOrFallback(const char *file, const char *mode)
         fp = fopen(file, mode);
     }
 
-    [autorelease_pool drain];
+    [autorelease_pool release];
 
     return fp;
 }
