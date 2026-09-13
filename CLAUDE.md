@@ -30,10 +30,17 @@ being regenerated at build time by a port's build driver.
 
 | Branch | Base | Upstream | SDL version | Status |
 |---|---|---|---|---|
-| `retro/panther-ppc` | `alex-free/panther-sdl2@bd33187` | <https://github.com/alex-free/panther-sdl2> | 2.0.3 | fleet patches + SDL#1 fix landed, tagged `retro/panther-ppc-sdl1-fix` |
+| `retro/panther-ppc-v2` | `matthewdeaves/panther-sdl2@oldmac` (3c721fce79) | halflife's own fork, itself `alex-free/panther-sdl2@bd33187` + 7 real commits | 2.0.3 | **canonical**, per manager decision 2026-09-13 15:12. SDL#1 fix landed on top, tagged `retro/panther-ppc-sdl1-fix-v2` |
+| `retro/panther-ppc` | `alex-free/panther-sdl2@bd33187` | <https://github.com/alex-free/panther-sdl2> | 2.0.3 | **superseded, do not use.** Built from old-mac-build-host's 2026-07-27 snapshot, which predates halflife's real production history (`matthewdeaves/panther-sdl2`) by one joystick-backend commit (2026-08-21) — this branch ships without PowerPC gamepad support. Kept only because a force-push to remove it needs a human's go-ahead; see `retro/panther-ppc-v2` instead. Tag `retro/panther-ppc-sdl1-fix` is superseded the same way, by `retro/panther-ppc-sdl1-fix-v2`. |
 | `retro/leopard-ppc` | `alex-free/leopard-sdl2@01e350c` | <https://github.com/alex-free/leopard-sdl2> | 2.0.6 | fleet hand-edit landed, tagged `retro/leopard-ppc-base`; in no shipped slice since old-mac-halflife v1.4.0 |
-| `retro/x86_64-10.5` | not yet established | — | — | source tree at `~/oldmac/sdl2-x86_64` (mini-intel) has no recorded provenance; identifying it is the open prerequisite (SDL#2) |
+| `retro/x86_64-10.5` | not yet established | — | — | source tree at `~/oldmac/sdl2-x86_64` (mini-intel) has no recorded provenance; buildhost owns the provenance handoff for this one (SDL#2) since they built the artifact |
 | `retro/arm64` | not yet established | — | — | not started |
+
+`old-mac-half-life-1` still builds from `matthewdeaves/panther-sdl2` directly
+(`scripts/build-pins.sh`, not this repo) as of the v1.9.18 RC. Repointing it
+at `retro/panther-ppc-v2` is a follow-up (`old-mac-half-life-1` Triage
+ticket, once filed) for after that RC, not before — the RC is already built
+and installed fleet-wide from a byte-identical source.
 
 ### How each tree is built and verified
 
