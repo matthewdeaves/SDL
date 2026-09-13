@@ -149,11 +149,24 @@ if [ -n "$SDK_PATH" ] && [ "$HARD_N" -gt 0 ]; then
             # First declaration match wins; framework bundles have many
             # symlink paths to the same physical header, not distinct
             # declarations, so more than one hit is expected duplication.
-            hit=$(grep -rn -w -- "$name" \
+            #
+            # --exclude='*.gch' and the trailing `|| true` are both load-
+            # bearing, not cosmetic: a precompiled-header cache file (e.g.
+            # usr/include/c++/4.0.0/.../stdc++.h.gch/O0g.gch, a serialized
+            # compiler AST, not text) made this fleet's own grep abort with
+            # "expression recursion level exceeded" partway through a real
+            # run on mini-intel2 -- under `set -eu` that silently killed the
+            # rest of the audit (68 of 191 symbols got a verdict, the other
+            # 123 were never checked, and the caller saw exit 0 because a
+            # trailing `rm -f` in the wrapper command masked the real
+            # failure). Confirmed 2026-09-13. Skip .gch outright (it is
+            # never a real declaration to find) and never let one symbol's
+            # lookup take down every symbol after it.
+            hit=$(grep -rn -w --exclude='*.gch' -- "$name" \
                     "$SDK_PATH/usr/include" \
                     "$SDK_PATH/System/Library/Frameworks" \
                     "$SDK_PATH/System/Library/PrivateFrameworks" \
-                    "$SDK_PATH/Developer/Headers" 2>/dev/null | head -1)
+                    "$SDK_PATH/Developer/Headers" 2>/dev/null | head -1) || true
             if [ -z "$hit" ]; then
                 echo "  NOT FOUND in SDK headers: $sym  -- investigate directly, may be private/undocumented"
                 continue
@@ -162,7 +175,7 @@ if [ -n "$SDK_PATH" ] && [ "$HARD_N" -gt 0 ]; then
             line=$(printf '%s' "$hit" | cut -d: -f2)
             # A few lines of context: the annotation macro is sometimes on
             # the declaration line, sometimes the line right after.
-            ctx=$(sed -n "$((line>2?line-1:1)),$((line+2))p" "$file" 2>/dev/null)
+            ctx=$(sed -n "$((line>2?line-1:1)),$((line+2))p" "$file" 2>/dev/null) || true
             ver=$(printf '%s' "$ctx" | grep -o 'AVAILABLE_MAC_OS_X_VERSION_10_[0-9]*' | grep -o '[0-9]*$' | sort -rn | head -1)
             if [ -n "$ver" ] && [ "$ver" -gt "$FLOOR_MINOR" ]; then
                 echo "  RISK: $sym annotated AVAILABLE_MAC_OS_X_VERSION_10_${ver}_AND_LATER, floor is $FLOOR ($file:$line)"
