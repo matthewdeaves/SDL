@@ -47,14 +47,31 @@
 #   smoke test, or a selector-literal scan against a per-OS class-dump)
 #   would be needed for that class of bug. Do not claim this script would
 #   have caught alephone#37 -- it would not have.
+# - The optional SDK-header cross-check (below) is a text-level heuristic,
+#   not a compiler: it greps for the symbol name and looks for an
+#   AVAILABLE_MAC_OS_X_VERSION_10_N_AND_LATER / WEAK_IMPORT_ATTRIBUTE
+#   annotation near the match. It can miss an annotation on a continuation
+#   line it doesn't scan far enough to reach, and it cannot tell a genuine
+#   declaration from an unrelated comment mentioning the same word. Treat
+#   its RISK/NOT FOUND lines as "look at this by hand", and its OK lines as
+#   "nothing suspicious turned up", not as a proof of safety.
 #
 # Usage:
-#   weak-link-audit.sh <path-to-dylib-or-static-lib-or-executable> <floor, e.g. 10.3>
+#   weak-link-audit.sh <binary> <floor, e.g. 10.3> [floor-sdk-path]
+#
+# With the third argument (e.g. /Developer/SDKs/MacOSX10.3.9.sdk), each hard
+# truly-external symbol is additionally cross-checked against that SDK's own
+# headers: found with no newer-than-floor annotation, found but annotated
+# for a later OS (a real risk on a toolchain that never weak-imports, like
+# this fleet's gcc-4.0/PowerPC), or not found in the headers at all (also
+# worth a direct look -- could be a private/undocumented API, or this
+# script's grep just missed how it's declared).
 
 set -eu
 
-BIN="${1:?usage: weak-link-audit.sh <binary> <expected-floor>}"
-FLOOR="${2:?usage: weak-link-audit.sh <binary> <expected-floor>}"
+BIN="${1:?usage: weak-link-audit.sh <binary> <expected-floor> [floor-sdk-path]}"
+FLOOR="${2:?usage: weak-link-audit.sh <binary> <expected-floor> [floor-sdk-path]}"
+SDK_PATH="${3:-}"
 
 if [ ! -f "$BIN" ]; then
     echo "!! not found: $BIN" >&2
@@ -118,4 +135,42 @@ echo
 if [ "$HARD_N" -gt 0 ]; then
     echo "-- hard, truly-external symbols (review each against the $FLOOR SDK) --"
     printf '%s\n' "$TRULY_EXT" | awk '/^hard /{print "  "$2}' | sort
+fi
+
+if [ -n "$SDK_PATH" ] && [ "$HARD_N" -gt 0 ]; then
+    echo
+    echo "-- cross-check against $SDK_PATH headers (floor $FLOOR) --"
+    if [ ! -d "$SDK_PATH" ]; then
+        echo "!! SDK path not found: $SDK_PATH" >&2
+    else
+        FLOOR_MINOR=$(printf '%s' "$FLOOR" | awk -F. '{print $2}')
+        printf '%s\n' "$TRULY_EXT" | awk '/^hard /{print $2}' | sort | while read -r sym; do
+            name=${sym#_}
+            # First declaration match wins; framework bundles have many
+            # symlink paths to the same physical header, not distinct
+            # declarations, so more than one hit is expected duplication.
+            hit=$(grep -rn -w -- "$name" \
+                    "$SDK_PATH/usr/include" \
+                    "$SDK_PATH/System/Library/Frameworks" \
+                    "$SDK_PATH/System/Library/PrivateFrameworks" \
+                    "$SDK_PATH/Developer/Headers" 2>/dev/null | head -1)
+            if [ -z "$hit" ]; then
+                echo "  NOT FOUND in SDK headers: $sym  -- investigate directly, may be private/undocumented"
+                continue
+            fi
+            file=$(printf '%s' "$hit" | cut -d: -f1)
+            line=$(printf '%s' "$hit" | cut -d: -f2)
+            # A few lines of context: the annotation macro is sometimes on
+            # the declaration line, sometimes the line right after.
+            ctx=$(sed -n "$((line>2?line-1:1)),$((line+2))p" "$file" 2>/dev/null)
+            ver=$(printf '%s' "$ctx" | grep -o 'AVAILABLE_MAC_OS_X_VERSION_10_[0-9]*' | grep -o '[0-9]*$' | sort -rn | head -1)
+            if [ -n "$ver" ] && [ "$ver" -gt "$FLOOR_MINOR" ]; then
+                echo "  RISK: $sym annotated AVAILABLE_MAC_OS_X_VERSION_10_${ver}_AND_LATER, floor is $FLOOR ($file:$line)"
+            elif printf '%s' "$ctx" | grep -q 'WEAK_IMPORT_ATTRIBUTE'; then
+                echo "  found, marked weak_import in the SDK, but this toolchain emits no weak markers (see LIMITS): $sym ($file:$line)"
+            else
+                echo "  ok: $sym found, no newer-than-floor annotation nearby ($file:$line)"
+            fi
+        done
+    fi
 fi
