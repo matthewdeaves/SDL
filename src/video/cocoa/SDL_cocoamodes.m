@@ -493,7 +493,17 @@ Cocoa_GetDisplayModes(_THIS, SDL_VideoDisplay * display)
         }
 
         CVDisplayLinkRelease(link);
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1060
+        /* CGDisplayCopyAllDisplayModes (>=10.6) follows the Copy rule, so we own
+         * this array and must release it. But on the <10.6 path above we used
+         * CGDisplayAvailableModes(), which follows the Get rule: the array is
+         * owned by CoreGraphics and shared with its internal cache. Releasing it
+         * there is an over-release that later makes CGDisplayCurrentMode() (called
+         * by HIToolbox _FirstEventTime on the first event pump) return a dangling
+         * mode dict -> objc_msgSend on freed memory -> SIGBUS at 0x1. So only
+         * release on 10.6+. (oldmac Leopard-PPC fix.) */
         CFRelease(modes);
+#endif
     }
 }
 
