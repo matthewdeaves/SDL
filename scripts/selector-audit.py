@@ -104,7 +104,17 @@ def audit(source_root: pathlib.Path, sdk_path: pathlib.Path):
 
     for path in sorted(source_root.glob("src/**/*.m")):
         text = path.read_text(errors="replace")
-        var_class = dict(DECL_RE.findall(text))
+        # DECL_RE.findall yields (class, varname) pairs; the lookup below is
+        # by varname, so the dict must be keyed on the SECOND element, not
+        # the first. dict(pairs) keys on the first element of each pair --
+        # this line silently built {class: varname} instead of
+        # {varname: class} until caught 2026-09-13: every message send
+        # through a local variable (e.g. [autorelease_pool drain], the
+        # exact shape of SDL#1's bug) was resolving to klass=None and being
+        # skipped, so only sends to a literal class name were ever actually
+        # checked. Confirmed by testing this script against the commit
+        # immediately before SDL#1's fix, where it did NOT flag -drain.
+        var_class = dict((v, c) for c, v in DECL_RE.findall(text))
 
         sends = []
         for m in UNARY_RE.finditer(text):
