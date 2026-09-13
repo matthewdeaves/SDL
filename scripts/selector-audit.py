@@ -45,6 +45,17 @@ SCOPE AND KNOWN LIMITS -- read before trusting a clean result:
     this against a modern SDK for validation: every remaining false
     positive after fixing the NSObject-header bug (see git history) was a
     class-property declaration like NSFileManager's `defaultManager`.
+  - No preprocessor awareness at all: a selector inside an
+    `#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070` block that will never
+    compile in on this floor is still scanned and can still be flagged.
+    Confirmed 2026-09-13 on the real Panther floor: setCollectionBehavior:
+    (SDL_cocoawindow.m) is a false positive of exactly this kind.
+  - No category-header awareness: a method NSObject (or any tracked class)
+    gains via a category declared in ANOTHER header -- e.g.
+    performSelectorOnMainThread:withObject:waitUntilDone: is added to
+    NSObject by a category in NSThread.h, not declared in NSObject.h itself
+    -- is invisible to this script and will show as a false NOT DECLARED.
+    Confirmed 2026-09-13, same run as above.
 """
 import re
 import sys
