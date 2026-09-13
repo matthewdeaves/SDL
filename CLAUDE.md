@@ -126,12 +126,25 @@ After resolving intra-archive references (most "undefined" symbols in one
 `.o` are actually defined by another `.o` in the same archive and are not a
 real floor dependency), the archive has 191 genuinely external symbols —
 libSystem/CoreFoundation/CoreGraphics/Carbon/IOKit/pthread/objc-runtime
-calls consistent with a 10.3-era SDL2 build. Not individually cross-checked
-against the 10.3.9 SDK's own availability annotations one by one — that's
-the natural next step if this floor's safety is ever in question, and would
-need to run on a host with that SDK (confirmed reachable: mini-intel2,
-`/Developer/SDKs/MacOSX10.3.9.sdk`). Stopping here for now; full result
-posted to matthewdeaves/SDL#1.
+calls consistent with a 10.3-era SDL2 build.
+
+Cross-checked all 191 against the real `/Developer/SDKs/MacOSX10.3.9.sdk`'s
+own headers (`weak-link-audit.sh`'s optional 3rd argument): 185 found with
+no newer-than-floor `AVAILABLE_MAC_OS_X_VERSION_10_N_AND_LATER` annotation,
+0 flagged as a version risk, 0 using `WEAK_IMPORT_ATTRIBUTE`, and 6 "not
+found in SDK headers" — all benign compiler/ABI internals, not OS APIs at
+all: `___CFConstantStringClassReference` (the ObjC string-literal class
+ref), `___udivdi3`/`___umoddi3` (libgcc 64-bit division helpers), and
+`restGPR`/`restGPRx`/`saveGPR` (PowerPC prologue/epilogue helpers from
+libgcc). None represent a floor risk. Full result posted to
+matthewdeaves/SDL#1.
+
+The first attempt at this cross-check silently died 68 symbols in (a
+precompiled-header cache file broke grep; fixed in `weak-link-audit.sh`,
+see its own history) — worth remembering that a script exiting 0 is not
+proof it ran to completion; the wrapper's own trailing cleanup command
+masked the real failure. Re-run and verified complete (191/191 accounted
+for) before trusting this result.
 
 Does **not** catch SDL#1/alephone#37's actual failure mode (an
 `objc_msgSend` to a selector the runtime doesn't implement) — that's
