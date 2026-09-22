@@ -36,6 +36,12 @@ being regenerated at build time by a port's build driver.
 | `retro/x86_64-10.6` | upstream `release-2.0.22` (53dea9830), unmodified | <https://github.com/libsdl-org/SDL> | 2.0.22 | **canonical for the x86_64 floor.** No source patch: SDL#2 is a deployment-target artefact, fixed by building at `-mmacosx-version-min=10.6` instead of 10.7. Tagged `retro/x86_64-10.6-base`. Supersedes the placeholder name `retro/x86_64-10.5` from this repo's original floor list — the real, measured floor is 10.6 (Snow Leopard/mini-sl), not 10.5. |
 | `retro/arm64` | not yet established | — | — | not started |
 
+SDL 1.2 lives in the sibling fork **matthewdeaves/SDL-1.2** (checkout
+`../SDL-1.2`; issues stay here). `retro/panther-ppc` is the ppc/10.3 floor:
+tag `retro/panther-ppc-base` rebuilds today's shipped slice byte-identically
+(SDL#4), and `retro/panther-ppc-sdl5-fix` adds the 16-bpp desktop fix and is
+released with its tested slice (SDL#5). That repo's CLAUDE.md has the details.
+
 ### x86_64 floor: SDL#2 finding
 
 The shared `~/oldmac/sdl2-x86_64` dylib on mini-intel is stock SDL2 2.0.22
@@ -102,6 +108,12 @@ at that commit before being written, not against the reporting ticket's
 claimed diff alone.
 
 Per-floor weak-link audit: `scripts/weak-link-audit.sh <binary> <floor>`.
+Since `c16deb5c3` it parses **linked** binaries correctly. Before that it
+mis-parsed them (lazy-bound imports never matched, and `(from Lib)` was
+taken as the symbol name), so a dylib or executable could read "0 hard"
+and look like a pass. It now exits 3 when nm yields no external symbols.
+Run it on the workstation: mini-intel's own `nm` can't parse newer
+binaries.
 Run 2026-09-13 against alephone's real `sdl2-ppc-tiger103/lib/libSDL2.a` on
 mini-intel2 (floor 10.3), now that buildhost#81's toolchain exists there.
 Two findings, both load-bearing for how to read this script's output on a
