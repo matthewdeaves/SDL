@@ -115,8 +115,21 @@ UNDEF="/tmp/weak-link-audit.undef.$$"
 trap 'rm -f "$DEFINED" "$UNDEF"' EXIT
 
 NMOUT=$(nm -m "$BIN" 2>/dev/null) || true
-printf '%s\n' "$NMOUT" | awk '!/\(undefined\)/ && /external/{print $NF}' | sort -u > "$DEFINED"
-printf '%s\n' "$NMOUT" | awk '/\(undefined\)/ && /external/{print (/weak external/ ? "weak" : "hard"), $NF}' | sort -u -k2 > "$UNDEF"
+# Symbol name = the token right after "external". Not $NF: in a LINKED
+# binary nm -m prints "(undefined [lazy bound]) external _sym (from Cocoa)",
+# so $NF is "Cocoa)" and the undefined marker isn't a bare "(undefined)".
+# Matching only the archive form made every dylib/executable report 0
+# symbols and silently pass (measured 2026-09-22 on the SDL 1.2 ppc slice:
+# 0 reported, 195 real; SDL#4).
+SYM='{ for (i = 1; i < NF; i++) if ($i == "external") { print '
+printf '%s\n' "$NMOUT" | awk '!/\(undefined/ && / external /'"$SYM"'$(i+1); break } }' | sort -u > "$DEFINED"
+printf '%s\n' "$NMOUT" | awk '/\(undefined/ && / external /'"$SYM"'(/ weak external / ? "weak" : "hard"), $(i+1); break } }' | sort -u -k2 > "$UNDEF"
+if [ ! -s "$DEFINED" ] && [ ! -s "$UNDEF" ]; then
+    echo "!! nm -m found no external symbols at all in $BIN -- nm failed or"
+    echo "   can't parse this file (e.g. mini-intel's own nm on a newer linker's"
+    echo "   output). That is NOT a pass; rerun where nm reads it."
+    exit 3
+fi
 
 # An archive member can be undefined-and-weak in one .o and undefined-and-
 # hard in another for the same symbol name (rare, but nm sees each .o on its
