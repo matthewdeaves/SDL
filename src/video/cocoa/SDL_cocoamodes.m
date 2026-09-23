@@ -62,7 +62,11 @@ Cocoa_ToggleMenuBar(const BOOL show)
 static BOOL
 IS_SNOW_LEOPARD_OR_LATER(_THIS)
 {
-#if FORCE_OLD_API
+#if FORCE_OLD_API || MAC_OS_X_VERSION_MIN_REQUIRED < 1060
+    /* oldmac: below a 10.6 floor only the CFDictionary mode path is compiled
+       in, so it has to serve every OS, 10.6+ included (deprecated there, still
+       present through 10.14). Asking the running OS here left 10.6+ with no
+       path at all: no displays, and SDL_Init(VIDEO) failed. */
     return NO;
 #else
     return ((((SDL_VideoData *) _this->driverdata))->osversion >= 0x1060);
