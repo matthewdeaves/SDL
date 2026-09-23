@@ -155,7 +155,15 @@ Cocoa_VideoInit(_THIS)
     Cocoa_InitMouse(_this);
 
     const char *hint = SDL_GetHint(SDL_HINT_VIDEO_MAC_FULLSCREEN_SPACES);
+#if MAC_OS_X_VERSION_MIN_REQUIRED >= 1070
     data->allow_spaces = ( (data->osversion >= 0x1070) && (!hint || (*hint != '0')) );
+#else
+    /* oldmac: the Spaces code (FullScreenPrimary, the enter/exit-fullscreen
+       delegate methods) is compiled only for a 10.7+ floor, so a lower-floor
+       build must not try Spaces even when it runs on 10.7+. */
+    (void) hint;
+    data->allow_spaces = 0;
+#endif
 
     return 0;
 }
