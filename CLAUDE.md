@@ -138,6 +138,25 @@ release tag, so the tarball is the source of record. Verified 2026-09-23:
 Built dylibs are not byte-identical between ports: each one embeds its own
 prefix, and quake2/quake3 add `-O2`. The pin is on the source.
 
+### RC release gate (manager, 2026-09-23)
+
+deps checks every bundled SDL slice of each port RC DMG and posts
+PASS/FAIL per slice on the RC's ticket. A mismatch blocks promotion.
+Per slice:
+- **Source:** the embedded revision string. 2.0.3 fork: `hg-8628:b558f99d48f0`.
+  2.0.22: `libsdl-org/SDL.git@53dea9830`. 2.32.4:
+  `SDL-release-2.32.4-0-g2359383fc`. Check it against the port's pin file at
+  the RC commit.
+- **Floor:** the declared floor against the port's README. ppc slices from
+  gcc-4.0 declare none, so rely on the 10.3.9 SDK link.
+- **Audit:** `weak-link-audit.sh` at that floor. Intel slices at 10.6 must
+  import `_NSBackingPropertyOldScaleFactorKey` weak (SDL#2).
+- **Fix markers:** an SDL2 ppc build must have no `drain` selector string
+  (SDL#1). An SDL 1.2 ppc slice must be the SDL#5 build (sha256 `07cc046e…`,
+  or the same load commands plus the port's install id).
+- Carve ppc members out of fat files with the fat header; modern `lipo` can't
+  thin ppc.
+
 ### How each tree is built and verified
 
 Provenance for the two PPC trees lives in
