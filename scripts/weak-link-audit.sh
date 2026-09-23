@@ -162,6 +162,14 @@ if [ -n "$SDK_PATH" ] && [ "$HARD_N" -gt 0 ]; then
         FLOOR_MINOR=$(printf '%s' "$FLOOR" | awk -F. '{print $2}')
         printf '%s\n' "$TRULY_EXT" | awk '/^hard /{print $2}' | sort | while read -r sym; do
             name=${sym#_}
+            # An Objective-C class reference names the class, not a symbol
+            # a header declares: .objc_class_name_NSFoo (fragile ABI: i386,
+            # ppc) or _OBJC_CLASS_$_NSFoo. Look up the class name itself.
+            case "$sym" in
+                .objc_class_name_*) name=${sym#.objc_class_name_} ;;
+                _OBJC_CLASS_\$_*) name=${sym#_OBJC_CLASS_\$_} ;;
+                _OBJC_METACLASS_\$_*) name=${sym#_OBJC_METACLASS_\$_} ;;
+            esac
             # First declaration match wins; framework bundles have many
             # symlink paths to the same physical header, not distinct
             # declarations, so more than one hit is expected duplication.
@@ -178,7 +186,11 @@ if [ -n "$SDK_PATH" ] && [ "$HARD_N" -gt 0 ]; then
             # failure). Confirmed 2026-09-13. Skip .gch outright (it is
             # never a real declaration to find) and never let one symbol's
             # lookup take down every symbol after it.
-            hit=$(grep -rn -w --exclude='*.gch' -- "$name" \
+            # -I as well: a framework's binary also contains the name, and
+            # grep's "Binary file ... matches" has no file:line, so the
+            # context read failed and the symbol fell through to "ok"
+            # unchecked (seen 2026-09-23 on ObjC class references).
+            hit=$(grep -rnI -w --exclude='*.gch' -- "$name" \
                     "$SDK_PATH/usr/include" \
                     "$SDK_PATH/System/Library/Frameworks" \
                     "$SDK_PATH/System/Library/PrivateFrameworks" \
