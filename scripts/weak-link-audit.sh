@@ -82,10 +82,13 @@ echo "== weak-link audit: $BIN (expected floor $FLOOR) =="
 echo
 
 echo "-- declared minimum OS version (otool -l) --"
+# LC_VERSION_MIN_MACOSX gives the floor as "version"; LC_BUILD_VERSION (the
+# 10.14+ linker, every arm64 binary) gives it as "minos", and its own later
+# "version" line is the linker tool's version, e.g. ld's 1267.0.
 DECLARED=$(otool -l "$BIN" 2>/dev/null | awk '
-    /LC_VERSION_MIN_MACOSX/ { want=1; next }
-    /LC_BUILD_VERSION/      { want=1; next }
-    want && /version/ { print $2; exit }
+    /LC_VERSION_MIN_MACOSX/ { want="version"; next }
+    /LC_BUILD_VERSION/      { want="minos"; next }
+    want && $1 == want { print $2; exit }
 ')
 if [ -z "$DECLARED" ]; then
     echo "!! no version-min load command found in $BIN"
