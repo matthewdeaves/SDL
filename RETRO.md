@@ -28,6 +28,4 @@ Build notes:
   and, if given the floor SDK, cross-checks the symbols against that SDK's
   headers.
 
-The ticket numbers above are this repo's issues, which hold the evidence for
-each floor. SDL is zlib-licensed (`LICENSE.txt`). Nothing here is sent
-upstream.
+Ticket numbers are this repo's issues. SDL is zlib-licensed (`LICENSE.txt`).
