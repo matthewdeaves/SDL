@@ -1,3 +1,4 @@
+> **This fork:** the `retro/*` branches hold the pinned SDL2 builds for old Mac OS X ports (10.3+ PowerPC, Intel, arm64). See [RETRO.md](RETRO.md). `main` tracks upstream.
 
 Simple DirectMedia Layer (SDL for short) is a cross-platform library
 designed to make it easy to write multi-media software, such as games
