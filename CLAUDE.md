@@ -34,7 +34,7 @@ being regenerated at build time by a port's build driver.
 | `retro/panther-ppc` | `alex-free/panther-sdl2@bd33187` | <https://github.com/alex-free/panther-sdl2> | 2.0.3 | **superseded, do not use.** Built from old-mac-build-host's 2026-07-27 snapshot, which predates halflife's real production history (`matthewdeaves/panther-sdl2`) by one joystick-backend commit (2026-08-21) — this branch ships without PowerPC gamepad support. Kept only because a force-push to remove it needs a human's go-ahead; see `retro/panther-ppc-v2` instead. Tag `retro/panther-ppc-sdl1-fix` is superseded the same way, by `retro/panther-ppc-sdl1-fix-v2`. |
 | `retro/leopard-ppc` | `alex-free/leopard-sdl2@01e350c` | <https://github.com/alex-free/leopard-sdl2> | 2.0.6 | fleet hand-edit landed, tagged `retro/leopard-ppc-base`; in no shipped slice since old-mac-halflife v1.4.0 |
 | `retro/x86_64-10.6` | upstream `release-2.0.22` (53dea9830), unmodified | <https://github.com/libsdl-org/SDL> | 2.0.22 | **canonical for the x86_64 floor.** No source patch: SDL#2 is a deployment-target artefact, fixed by building at `-mmacosx-version-min=10.6` instead of 10.7. Tagged `retro/x86_64-10.6-base`. Supersedes the placeholder name `retro/x86_64-10.5` from this repo's original floor list — the real, measured floor is 10.6 (Snow Leopard/mini-sl), not 10.5. |
-| `retro/arm64` | not yet established | — | — | not started |
+| `retro/arm64` | upstream `release-2.32.4` (2359383fc), unmodified | <https://github.com/libsdl-org/SDL> | 2.32.4 | **canonical for the arm64 floor (macOS 11.0).** Equals the signed `SDL2-2.32.4.tar.gz` (sha256 `f15b4782…f934`) that halflife/quake2/quake3 `build-arm64.sh` fetch. Tagged `retro/arm64-base` (SDL#6). |
 
 SDL 1.2 lives in the sibling fork **matthewdeaves/SDL-1.2** (checkout
 `../SDL-1.2`; issues stay here). `retro/panther-ppc` is the ppc/10.3 floor:
@@ -81,6 +81,34 @@ same way a real 10.6 SDK link would.
 at `retro/panther-ppc-v2` is a follow-up (`old-mac-half-life-1` Triage
 ticket, once filed) for after that RC, not before — the RC is already built
 and installed fleet-wide from a byte-identical source.
+
+### arm64 floor: SDL#6
+
+The three arm64 build drivers (old-mac-halflife, old-mac-quake2 and
+old-mac-quake3 `scripts/build-arm64.sh`) each fetch
+`https://www.libsdl.org/release/SDL2-2.32.4.tar.gz` and build it at
+`-mmacosx-version-min=11.0`, with no source patch. `retro/arm64` is that
+release tag, so the tarball is the source of record. Verified 2026-09-23:
+
+- tarball sha256
+  `f15b478253e1ff6dac62257ded225ff4e7d0c5230204ac3450f1144ee806f934`, the
+  same from libsdl.org and from the GitHub release asset. It has a good GPG
+  signature (`.sig`) from Sam Lantinga, key
+  `1528635D8053A57F77D1E08630A59377A7763BE6`.
+- its 1749 files equal `git archive release-2.32.4`, apart from the
+  tarball's `.git-hash` (2359383fc…) and `REVISION.txt`, and the git tree's
+  `.github`/`.gitignore`.
+- the quake2 and quake3 cached source trees on the workstation
+  (`~/.cache/oldmac-q{2,3}-arm64/src/SDL2-2.32.4`) match that tarball at
+  1749/1749 files. halflife's `/tmp` tree is gone.
+- `weak-link-audit.sh` on `~/oldmac/sdl2-arm64/lib/libSDL2-2.0.0.dylib`
+  at floor 11.0: declared minos 11.0 and no mismatch. That needed
+  `c2111589d`: the script used to read `LC_BUILD_VERSION`'s ld version
+  (1267.0) as the floor. With minos at the floor, clang weak-imports any
+  symbol newer than 11.0 (45 weak here).
+
+Built dylibs are not byte-identical between ports: each one embeds its own
+prefix, and quake2/quake3 add `-O2`. The pin is on the source.
 
 ### How each tree is built and verified
 
