@@ -34,6 +34,7 @@ being regenerated at build time by a port's build driver.
 | ~~`retro/panther-ppc`~~ | `alex-free/panther-sdl2@bd33187` | <https://github.com/alex-free/panther-sdl2> | 2.0.3 | **deleted 2026-09-23** (user's go-ahead). It was superseded by `retro/panther-ppc-v2`: built from buildhost's 2026-07-27 snapshot, it had no PowerPC gamepad support. Branch `7acc64195` and tag `retro/panther-ppc-sdl1-fix` (tag object `d9bbfc60`) are kept in `~/oldmac/sdl-superseded-retro-panther-ppc-2026-09-23.bundle` (sha256 `c546c47c…`). Restore with `git fetch <bundle> 'refs/*:refs/*'`. |
 | `retro/leopard-ppc` | `alex-free/leopard-sdl2@01e350c` | <https://github.com/alex-free/leopard-sdl2> | 2.0.6 | fleet hand-edit landed, tagged `retro/leopard-ppc-base`; in no shipped slice since old-mac-halflife v1.4.0 |
 | `retro/x86_64-10.6` | upstream `release-2.0.22` (53dea9830), unmodified | <https://github.com/libsdl-org/SDL> | 2.0.22 | **canonical for the x86_64 floor.** No source patch: SDL#2 is a deployment-target artefact, fixed by building at `-mmacosx-version-min=10.6` instead of 10.7. Tagged `retro/x86_64-10.6-base`. Supersedes the placeholder name `retro/x86_64-10.5` from this repo's original floor list — the real, measured floor is 10.6 (Snow Leopard/mini-sl), not 10.5. |
+| `retro/tiger-i386` | `retro/panther-ppc-v2` (1b299830c) + 2 commits | halflife's panther-sdl2 fork, as above | 2.0.3 | **canonical for the i386 floor (10.4).** Adds `f26d2d463` (old display-mode API on every OS below a 10.6 floor) and `4551b9a95` (no Spaces below a 10.7 floor); both are no-ops on ppc. Tagged `retro/tiger-i386-base` (SDL#7). |
 | `retro/arm64` | upstream `release-2.32.4` (2359383fc), unmodified | <https://github.com/libsdl-org/SDL> | 2.32.4 | **canonical for the arm64 floor (macOS 11.0).** Equals the signed `SDL2-2.32.4.tar.gz` (sha256 `f15b4782…f934`) that halflife/quake2/quake3 `build-arm64.sh` fetch. Tagged `retro/arm64-base` (SDL#6). |
 
 SDL 1.2 lives in the sibling fork **matthewdeaves/SDL-1.2** (checkout
@@ -81,6 +82,33 @@ same way a real 10.6 SDK link would.
 at `retro/panther-ppc-v2` is a follow-up (`old-mac-half-life-1` Triage
 ticket, once filed) for after that RC, not before — the RC is already built
 and installed fleet-wide from a byte-identical source.
+
+### i386 floor: SDL#7
+
+SDL2 2.0.22 (halflife's i386 prefix) `#error`s below 10.6. The 10.4 answer is
+the panther fork's 2.0.3, built for i386 with Apple clang against the real
+`MacOSX10.4u.sdk` (on imac-2019), so no GCC with Objective-C is needed for SDL
+itself:
+
+```sh
+FLAGS="-arch i386 -mmacosx-version-min=10.4 -isysroot ~/SDKs/MacOSX10.4u.sdk"
+../src/configure --host=i386-apple-darwin8 --disable-shared --enable-static \
+  --without-x --disable-haptic CC="clang $FLAGS" CFLAGS="-O2 $FLAGS" LDFLAGS="$FLAGS"
+```
+
+- It has to be an out-of-tree build: the fork commits a ppc-generated
+  `include/SDL_config.h`, and only an out-of-tree build puts its own first.
+- `--disable-haptic`: the pre-10.5 joystick backend has no `ffservice`, so
+  `haptic/darwin` doesn't compile. The ppc builds disable haptic too.
+- Measured 2026-09-23. The audit says declared 10.4, 0 weak, and 213 hard
+  externals: 211 are clean against the 10.4u headers, and the other 2 are
+  compiler internals. An SDL_Init + GL window probe runs on mini-sl (10.6.8,
+  Core 2 Duo, GeForce 9400), including a real 640x480 mode switch, desktop
+  fullscreen, and a restore, 3/3 runs. Before `f26d2d463`, the same probe
+  failed there with "The video driver did not add any displays".
+- Not run on 10.4 or 10.5 Intel: the fleet has no such host (alephone#31).
+  The display path that runs there is the same code the ppc builds run on
+  real 10.3-10.5.
 
 ### arm64 floor: SDL#6
 
